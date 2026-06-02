@@ -99,11 +99,16 @@ def entity_local_transform_conversion_kernel(
             continue
 
         if not body_corr[child_id][3] == 1.0:
-            print(
-                "A body is the child of multiple joints requiring joint_X_c "
-                "correction. The previous correction will be overwritten, which "
-                "may produce incorrect joint constraints for loop-closing joints."
-            )
+            # This child body was already corrected by its tree-parent joint.
+            # Re-express this joint's X_c in the already-corrected child frame
+            # without disturbing the existing body correction or body quantities.
+            q_existing_inv = wp.quat_inverse(body_corr[child_id])
+            c_pos = wp.transform_get_translation(joint_X_c_j)
+            wp.transform_set_translation(joint_X_c_j, wp.quat_rotate(q_existing_inv, c_pos))
+            wp.transform_set_rotation(joint_X_c_j, wp.quat_identity())
+            joint_X_c[joint_id] = joint_X_c_j
+            continue
+
         body_corr[child_id] = q_corr
 
         # Update child-side joint transform: rotation becomes identity,
