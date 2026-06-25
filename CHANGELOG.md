@@ -31,6 +31,7 @@
 - Fix `basic_conveyor` example emitting a spurious inertia validation warning at finalize.
 - Fix `SolverMuJoCo` generated MuJoCo joint names for multi-axis D6 joints to avoid duplicate names
 - Fix USD import of revolute and D6-angular joint `limit_ke` / `limit_kd` from `mjc:solreflimit` being over-scaled by ~57x
+- Fix `SolverMuJoCo` synthesizing ball (spherical) loop-closure CONNECT anchors from the bodies' reference pose, which discarded the joint's authored child anchor (`joint_X_c`) and collapsed distinct loop closures when the model was not assembled at the reference joint configuration; ball loop-closure anchors are now derived from the joint frames directly.
 
 ## [1.2.0] - 2026-05-12
 

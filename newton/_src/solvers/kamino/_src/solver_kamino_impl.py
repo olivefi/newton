@@ -245,7 +245,12 @@ class SolverKaminoImpl(SolverBase):
 
         # Create the time-integrator instance based on the config
         if self._config.integrator == "euler":
-            self._integrator = IntegratorEuler(model=self._model)
+            self._integrator = IntegratorEuler(
+                model=self._model,
+                alpha=self._config.angular_velocity_damping,
+                max_lin=self._config.max_linear_velocity,
+                max_ang=self._config.max_angular_velocity,
+            )
         elif self._config.integrator == "moreau":
             self._integrator = IntegratorMoreauJean(model=self._model)
         else:

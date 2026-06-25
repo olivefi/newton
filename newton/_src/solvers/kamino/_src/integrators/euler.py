@@ -59,6 +59,8 @@ wp.set_module_options({"enable_backward": False})
 @wp.func
 def euler_semi_implicit_with_logmap(
     alpha: float32,
+    max_lin: float32,
+    max_ang: float32,
     dt: float32,
     g: vec3f,
     inv_m_i: float32,
@@ -82,6 +84,18 @@ def euler_semi_implicit_with_logmap(
     # Apply damping to angular velocity
     omega_i_n *= 1.0 - alpha * dt
 
+    # Optional per-body velocity clamp. Caps catastrophic contact-artifact launches (e.g. a
+    # foot deeply penetrating a trimesh edge in one substep) without affecting normal motion,
+    # as long as the limits exceed the system's natural body speeds. Disabled when <= 0.
+    if max_lin > 0.0:
+        _sp = wp.length(v_i_n)
+        if _sp > max_lin:
+            v_i_n = v_i_n * (max_lin / _sp)
+    if max_ang > 0.0:
+        _asp = wp.length(omega_i_n)
+        if _asp > max_ang:
+            omega_i_n = omega_i_n * (max_ang / _asp)
+
     # Integrate the body pose using the updated twist
     p_i_n = compute_body_pose_update_with_logmap(
         dt=dt,
@@ -103,6 +117,8 @@ def euler_semi_implicit_with_logmap(
 def _integrate_semi_implicit_euler_inplace(
     # Inputs:
     alpha: float,
+    max_lin: float,
+    max_ang: float,
     model_dt: wp.array[float32],
     model_gravity: wp.array[vec4f],
     model_bodies_wid: wp.array[int32],
@@ -138,6 +154,8 @@ def _integrate_semi_implicit_euler_inplace(
     # Compute the next pose and twist
     q_i_n, u_i_n = euler_semi_implicit_with_logmap(
         alpha,
+        max_lin,
+        max_ang,
         dt,
         g,
         inv_m_i,
@@ -158,13 +176,21 @@ def _integrate_semi_implicit_euler_inplace(
 ###
 
 
-def integrate_euler_semi_implicit(model: ModelKamino, data: DataKamino, alpha: float = 0.0):
+def integrate_euler_semi_implicit(
+    model: ModelKamino,
+    data: DataKamino,
+    alpha: float = 0.0,
+    max_lin: float = 0.0,
+    max_ang: float = 0.0,
+):
     wp.launch(
         _integrate_semi_implicit_euler_inplace,
         dim=model.size.sum_of_num_bodies,
         inputs=[
             # Inputs:
             alpha,  # alpha: angular damping
+            max_lin,  # max linear speed clamp (<=0 disables)
+            max_ang,  # max angular speed clamp (<=0 disables)
             model.time.dt,
             model.gravity.vector,
             model.bodies.wid,
@@ -207,7 +233,13 @@ class IntegratorEuler(IntegratorBase):
     constraint reactions.
     """
 
-    def __init__(self, model: ModelKamino, alpha: float | None = None):
+    def __init__(
+        self,
+        model: ModelKamino,
+        alpha: float | None = None,
+        max_lin: float | None = None,
+        max_ang: float | None = None,
+    ):
         """
         Initializes the Semi-Implicit Euler integrator with the given :class:`ModelKamino` instance.
 
@@ -216,6 +248,12 @@ class IntegratorEuler(IntegratorBase):
                 The model container holding the time-invariant parameters of the system being simulated.
             alpha (`float`, optional):
                 The angular damping coefficient. Defaults to 0.0 if `None` is provided.
+            max_lin (`float`, optional):
+                Per-body maximum linear speed [m/s] enforced after each substep. ``<= 0`` disables
+                the clamp. Defaults to 0.0 (disabled) if `None` is provided.
+            max_ang (`float`, optional):
+                Per-body maximum angular speed [rad/s] enforced after each substep. ``<= 0`` disables
+                the clamp. Defaults to 0.0 (disabled) if `None` is provided.
         """
         super().__init__(model)
 
@@ -224,6 +262,12 @@ class IntegratorEuler(IntegratorBase):
         Damping coefficient for angular velocity used to improve numerical stability of the integrator.\n
         Defaults to `0.0`, corresponding to no damping being applied.
         """
+
+        self._max_lin: float = max_lin if max_lin is not None else 0.0
+        """Per-body maximum linear speed [m/s] clamp. ``<= 0`` disables it."""
+
+        self._max_ang: float = max_ang if max_ang is not None else 0.0
+        """Per-body maximum angular speed [rad/s] clamp. ``<= 0`` disables it."""
 
     ###
     # Operations
@@ -282,4 +326,6 @@ class IntegratorEuler(IntegratorBase):
         )
 
         # Perform forward integration to compute the next state of the system
-        integrate_euler_semi_implicit(model=model, data=data, alpha=self._alpha)
+        integrate_euler_semi_implicit(
+            model=model, data=data, alpha=self._alpha, max_lin=self._max_lin, max_ang=self._max_ang
+        )

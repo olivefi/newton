@@ -186,6 +186,22 @@ class SolverKamino(SolverBase):
         Defaults to `0.0` (i.e. no damping).
         """
 
+        max_linear_velocity: float = 0.0
+        """
+        Per-body maximum linear speed [m/s] enforced after each integration substep.\n
+        Acts as a safety clamp that caps catastrophic contact-artifact launches (e.g. a foot
+        deeply penetrating a trimesh edge in a single substep) without affecting normal motion,
+        provided the limit is set above the system's natural body speeds.\n
+        Defaults to `0.0`, which disables the clamp (no limit).
+        """
+
+        max_angular_velocity: float = 0.0
+        """
+        Per-body maximum angular speed [rad/s] enforced after each integration substep.\n
+        Companion to :attr:`max_linear_velocity` for capping rotational launch artifacts.\n
+        Defaults to `0.0`, which disables the clamp (no limit).
+        """
+
         collect_solver_info: bool = False
         """
         Enables/disables collection of solver convergence and performance info at each simulation step.\n
