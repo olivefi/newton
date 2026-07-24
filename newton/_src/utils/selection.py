@@ -589,8 +589,10 @@ class ArticulationView:
             link_id = int(model_joint_child[joint_id])
             arti_link_ids.append(link_id)
 
-        # use link order as they appear in the model
-        arti_link_ids = sorted(arti_link_ids)
+        # use link order as they appear in the model; deduplicate because a body can be the child
+        # of more than one joint in the articulation's index range (loop-closing joints reuse an
+        # existing body as their child), and each link must appear exactly once in the view.
+        arti_link_ids = sorted(set(arti_link_ids))
         arti_link_count = len(arti_link_ids)
         for link_id in arti_link_ids:
             arti_link_names.append(get_name_from_label(model.body_label[link_id]))
@@ -649,7 +651,8 @@ class ArticulationView:
                 shape_counts[world_id].append(num_shapes)
 
         # make sure counts are the same for all articulations
-        # NOTE: we currently assume that link count is the same as joint count
+        # NOTE: joint count may exceed unique link count when loop-closing joints fall within the
+        # articulation's joint-index range; the link list above is deduplicated to account for this.
         if not (
             all_equal(joint_counts)
             and all_equal(joint_dof_counts)
